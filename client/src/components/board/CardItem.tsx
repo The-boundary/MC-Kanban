@@ -23,9 +23,10 @@ interface CardItemProps {
   card: Card;
   boardId: string;
   isOverlay?: boolean;
+  onCardClick?: (cardId: string) => void;
 }
 
-export function CardItem({ card, boardId: _boardId, isOverlay }: CardItemProps) {
+export function CardItem({ card, boardId: _boardId, isOverlay, onCardClick }: CardItemProps) {
   const {
     attributes,
     listeners,
@@ -66,12 +67,21 @@ export function CardItem({ card, boardId: _boardId, isOverlay }: CardItemProps) 
     return name ? name.charAt(0).toUpperCase() : '?';
   }, [card.assignee]);
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (isDragging || isOverlay) return;
+    // Don't trigger card click if clicking on interactive elements inside the card
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, select, textarea')) return;
+    onCardClick?.(card.id);
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
+      onClick={handleClick}
       className={cn(
         'cursor-pointer rounded-lg border border-border/60 bg-card p-3 shadow-sm transition-colors hover:bg-muted/50',
         isDragging && 'opacity-40',

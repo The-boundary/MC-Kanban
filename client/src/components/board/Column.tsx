@@ -16,9 +16,10 @@ import { AddCard } from './AddCard';
 interface BoardColumnProps {
   column: Column;
   boardId: string;
+  onCardClick?: (cardId: string) => void;
 }
 
-export function BoardColumn({ column, boardId }: BoardColumnProps) {
+export function BoardColumn({ column, boardId, onCardClick }: BoardColumnProps) {
   const cards = useMemo(
     () => [...(column.cards || [])].sort((a, b) => a.position - b.position),
     [column.cards],
@@ -91,7 +92,7 @@ export function BoardColumn({ column, boardId }: BoardColumnProps) {
         <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-2">
             {cards.map((card) => (
-              <CardItem key={card.id} card={card} boardId={boardId} />
+              <CardItem key={card.id} card={card} boardId={boardId} onCardClick={onCardClick} />
             ))}
           </div>
         </SortableContext>

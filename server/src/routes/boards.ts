@@ -17,8 +17,6 @@ router.get('/', async (req, res) => {
   try {
     const scope = (req.query.scope as string) || 'all';
     const userId = req.user!.id;
-    const _userEmail = (req.user!.email || '').toLowerCase();
-
     let whereClause: string;
     let params: any[];
 

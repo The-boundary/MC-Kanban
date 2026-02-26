@@ -44,6 +44,11 @@ export interface Card {
   checklist_progress?: { total: number; checked: number };
   comment_count?: number;
   attachment_count?: number;
+  // Full card detail fields (from GET /cards/:id)
+  checklists?: Checklist[];
+  comments?: Comment[];
+  attachments?: Attachment[];
+  activity?: CardActivity[];
 }
 
 export interface Label {

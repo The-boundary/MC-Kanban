@@ -24,6 +24,7 @@ import { BoardColumn } from './Column';
 import { AddColumn } from './AddColumn';
 import { CardItem } from './CardItem';
 import { BoardHeader } from './BoardHeader';
+import { CardDetail } from '@/components/card/CardDetail';
 
 interface BoardViewProps {
   board: Board;
@@ -37,6 +38,7 @@ export function BoardView({ board }: BoardViewProps) {
 
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   // Track which column a card is currently hovering over
   const overColumnRef = useRef<string | null>(null);
@@ -309,6 +311,7 @@ export function BoardView({ board }: BoardViewProps) {
                 key={column.id}
                 column={column}
                 boardId={board.id}
+                onCardClick={setSelectedCardId}
               />
             ))}
           </SortableContext>
@@ -331,6 +334,16 @@ export function BoardView({ board }: BoardViewProps) {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Card detail modal */}
+      {selectedCardId && (
+        <CardDetail
+          cardId={selectedCardId}
+          boardId={board.id}
+          open={!!selectedCardId}
+          onClose={() => setSelectedCardId(null)}
+        />
+      )}
     </div>
   );
 }
