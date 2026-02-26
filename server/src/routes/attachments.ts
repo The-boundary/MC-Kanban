@@ -8,10 +8,8 @@ import { logActivity } from '../services/activity.js';
 
 const router = Router();
 
-// Multer config: 10MB max, store in memory
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 // ─── Helper: look up board via card → column → board ─────────────────────────
