@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { Home, LayoutDashboard, LogOut, Settings } from 'lucide-react';
+import { Home, LayoutDashboard, LogOut } from 'lucide-react';
 
 import {
   MissionControlSidebar,

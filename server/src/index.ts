@@ -31,7 +31,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Request ID middleware
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   req.headers['x-request-id'] = req.headers['x-request-id'] || crypto.randomUUID();
   next();
 });
