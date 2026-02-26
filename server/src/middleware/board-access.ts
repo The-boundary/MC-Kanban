@@ -20,24 +20,29 @@ export async function checkBoardAccess(
       return (result.rowCount ?? 0) > 0;
     }
     case 'project': {
-      const [kanbanAccess, workspaceAccess] = await Promise.all([
-        dbQueryRaw(
-          `SELECT 1 FROM tower_watch.effective_user_app_access_view
-           WHERE user_id = $1 AND app_slug = 'kanban' AND is_active = true`,
-          [userId],
-        ),
-        dbQueryRaw(
-          `SELECT 1 FROM traffic_light.kantata_workspace_resources wr
-           JOIN traffic_light.kantata_users u ON u.kantata_id = wr.user_id AND u.is_current = true
-           WHERE wr.workspace_id = $1 AND wr.is_current = true AND lower(u.email_address) = $2
-           UNION ALL
-           SELECT 1 FROM traffic_light.kantata_workspaces w
-           JOIN traffic_light.kantata_users u ON u.kantata_id = w.primary_maven_id AND u.is_current = true
-           WHERE w.kantata_id = $1 AND w.is_current = true AND lower(u.email_address) = $2`,
-          [board.scope_ref, userEmail.toLowerCase()],
-        ),
-      ]);
-      return (kanbanAccess.rowCount ?? 0) > 0 && (workspaceAccess.rowCount ?? 0) > 0;
+      // Must have kanban app access
+      const kanbanAccess = await dbQueryRaw(
+        `SELECT is_admin FROM tower_watch.effective_user_app_access_view
+         WHERE user_id = $1 AND app_slug = 'kanban' AND is_active = true`,
+        [userId],
+      );
+      if ((kanbanAccess.rowCount ?? 0) === 0) return false;
+
+      // Admins can access all project boards
+      if (kanbanAccess.rows[0]?.is_admin) return true;
+
+      // Non-admins must be a workspace resource or primary maven
+      const workspaceAccess = await dbQueryRaw(
+        `SELECT 1 FROM traffic_light.kantata_workspace_resources wr
+         JOIN traffic_light.kantata_users u ON u.kantata_id = wr.user_id AND u.is_current = true
+         WHERE wr.workspace_id = $1 AND wr.is_current = true AND lower(u.email_address) = $2
+         UNION ALL
+         SELECT 1 FROM traffic_light.kantata_workspaces w
+         JOIN traffic_light.kantata_users u ON u.kantata_id = w.primary_maven_id AND u.is_current = true
+         WHERE w.kantata_id = $1 AND w.is_current = true AND lower(u.email_address) = $2`,
+        [board.scope_ref, userEmail.toLowerCase()],
+      );
+      return (workspaceAccess.rowCount ?? 0) > 0;
     }
     case 'personal': {
       if (board.created_by === userId) return true;
