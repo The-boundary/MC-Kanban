@@ -20,10 +20,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Board, Card, Column as ColumnType } from '@shared/types';
 import { useMoveCard, useReorderCards } from '@/hooks/api/cards';
 import { useReorderColumns } from '@/hooks/api/columns';
+import { useUsers } from '@/hooks/api/users';
+import { useBoardFilters } from '@/hooks/useBoardFilters';
 import { BoardColumn } from './Column';
 import { AddColumn } from './AddColumn';
 import { CardItem } from './CardItem';
 import { BoardHeader } from './BoardHeader';
+import { BoardFilters } from './BoardFilters';
 import { CardDetail } from '@/components/card/CardDetail';
 
 interface BoardViewProps {
@@ -35,6 +38,17 @@ export function BoardView({ board }: BoardViewProps) {
   const moveCard = useMoveCard();
   const reorderCards = useReorderCards();
   const reorderColumns = useReorderColumns();
+  const { data: users } = useUsers();
+  const {
+    filters,
+    setSearch,
+    setAssigneeId,
+    setLabelId,
+    setPriority,
+    clearFilters,
+    hasActiveFilters,
+    filterCards,
+  } = useBoardFilters();
 
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
@@ -46,6 +60,26 @@ export function BoardView({ board }: BoardViewProps) {
   const columns = useMemo(
     () => [...(board.columns || [])].sort((a, b) => a.position - b.position),
     [board.columns],
+  );
+
+  // Columns with filtered cards (for rendering only)
+  const filteredColumns = useMemo(
+    () =>
+      columns.map((col) => ({
+        ...col,
+        cards: filterCards(col.cards || []),
+      })),
+    [columns, filterCards],
+  );
+
+  const membersList = useMemo(
+    () =>
+      (users ?? []).map((u) => ({
+        id: u.id,
+        display_name: u.display_name,
+        email: u.email,
+      })),
+    [users],
   );
 
   const columnIds = useMemo(() => columns.map((c) => c.id), [columns]);
@@ -296,6 +330,18 @@ export function BoardView({ board }: BoardViewProps) {
     <div className="flex h-full flex-col">
       <BoardHeader board={board} />
 
+      <BoardFilters
+        board={board}
+        filters={filters}
+        hasActiveFilters={hasActiveFilters}
+        onSearchChange={setSearch}
+        onAssigneeChange={setAssigneeId}
+        onLabelChange={setLabelId}
+        onPriorityChange={setPriority}
+        onClear={clearFilters}
+        members={membersList}
+      />
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -306,7 +352,7 @@ export function BoardView({ board }: BoardViewProps) {
       >
         <div className="flex flex-1 gap-4 overflow-x-auto pb-4 pt-2">
           <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-            {columns.map((column) => (
+            {filteredColumns.map((column) => (
               <BoardColumn
                 key={column.id}
                 column={column}

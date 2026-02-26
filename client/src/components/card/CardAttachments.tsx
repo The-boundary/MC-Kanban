@@ -1,8 +1,13 @@
-import { Paperclip, FileText } from 'lucide-react';
+import { useRef } from 'react';
+import { Paperclip, FileText, Upload, Trash2, Download, Loader2 } from 'lucide-react';
 import type { Attachment } from '@shared/types';
+import { useUploadAttachment, useDeleteAttachment } from '@/hooks/api/attachments';
+import { useAuth } from '@/context/AuthContext';
+import { cn } from '@/lib/utils';
 
 interface CardAttachmentsProps {
   attachments: Attachment[];
+  cardId: string;
 }
 
 function formatFileSize(bytes: number | null): string {
@@ -12,8 +17,19 @@ function formatFileSize(bytes: number | null): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-export function CardAttachments({ attachments }: CardAttachmentsProps) {
-  if (attachments.length === 0) return null;
+export function CardAttachments({ attachments, cardId }: CardAttachmentsProps) {
+  const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAttachment = useUploadAttachment();
+  const deleteAttachment = useDeleteAttachment();
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadAttachment.mutate({ cardId, file });
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   return (
     <div>
@@ -23,33 +39,99 @@ export function CardAttachments({ attachments }: CardAttachmentsProps) {
         <h3 className="text-sm font-medium text-foreground">
           Attachments ({attachments.length})
         </h3>
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploadAttachment.isPending}
+          className={cn(
+            'flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+            uploadAttachment.isPending && 'opacity-50',
+          )}
+        >
+          {uploadAttachment.isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Upload className="h-3 w-3" />
+          )}
+          Upload
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleUpload}
+        />
       </div>
 
       {/* Attachment list */}
       <div className="space-y-1">
-        {attachments.map((attachment) => (
-          <div
-            key={attachment.id}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/30"
-          >
-            <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium text-foreground">
-                {attachment.file_name}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {formatFileSize(attachment.file_size)}
-                {attachment.uploader && (
-                  <>
-                    {' - '}
-                    {attachment.uploader.display_name || attachment.uploader.email}
-                  </>
-                )}
-              </p>
+        {attachments.map((attachment) => {
+          const downloadUrl = (attachment as any).download_url;
+          const isOwner = user?.id === attachment.uploaded_by;
+
+          return (
+            <div
+              key={attachment.id}
+              className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/30"
+            >
+              <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-foreground">
+                  {attachment.file_name}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {formatFileSize(attachment.file_size)}
+                  {attachment.uploader && (
+                    <>
+                      {' - '}
+                      {attachment.uploader.display_name || attachment.uploader.email}
+                    </>
+                  )}
+                </p>
+              </div>
+
+              {/* Download link */}
+              {downloadUrl && (
+                <a
+                  href={downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                  title="Download"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </a>
+              )}
+
+              {/* Delete (uploader only) */}
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => deleteAttachment.mutate(attachment.id)}
+                  disabled={deleteAttachment.isPending}
+                  className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
+                  title="Delete"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+
+      {/* Empty state with upload prompt */}
+      {attachments.length === 0 && (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 px-4 py-6 text-xs text-muted-foreground transition-colors hover:border-sb-brand/40 hover:text-foreground"
+        >
+          <Upload className="h-4 w-4" />
+          Click to upload a file
+        </button>
+      )}
     </div>
   );
 }

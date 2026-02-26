@@ -13,6 +13,7 @@ import userRoutes from './users.js';
 import projectRoutes from './projects.js';
 import appRoutes from './apps.js';
 import activityRoutes from './activity.js';
+import attachmentRoutes from './attachments.js';
 
 const router = Router();
 
@@ -48,5 +49,6 @@ router.use('/users', userRoutes);
 router.use('/projects', projectRoutes);
 router.use('/apps', appRoutes);
 router.use('/', activityRoutes);   // handles /cards/:cardId/activity
+router.use('/', attachmentRoutes); // handles /cards/:cardId/attachments, /attachments/:id
 
 export default router;

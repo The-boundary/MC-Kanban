@@ -147,7 +147,7 @@ function CardDetailContent({ card, boardId, onClose }: CardDetailContentProps) {
               <CardChecklist checklists={checklists} cardId={card.id} />
             )}
 
-            {attachments.length > 0 && <CardAttachments attachments={attachments} />}
+            <CardAttachments attachments={attachments} cardId={card.id} />
 
             <CardComments cardId={card.id} />
 
