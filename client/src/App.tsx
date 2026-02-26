@@ -13,6 +13,9 @@ const DashboardPage = lazy(() =>
 const BoardPage = lazy(() =>
   import('./pages/BoardPage').then((m) => ({ default: m.BoardPage })),
 );
+const ScopedBoardPage = lazy(() =>
+  import('./pages/ScopedBoardPage').then((m) => ({ default: m.ScopedBoardPage })),
+);
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
@@ -41,6 +44,8 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShellLayout />}>
               <Route path="/" element={<DashboardPage />} />
+              <Route path="/board/app/:scopeRef" element={<ScopedBoardPage />} />
+              <Route path="/board/project/:scopeRef" element={<ScopedBoardPage />} />
               <Route path="/board/:id" element={<BoardPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>

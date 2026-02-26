@@ -1,6 +1,6 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { Home, LayoutDashboard, LogOut } from 'lucide-react';
+import { Home, LogOut, LayoutGrid, FolderKanban, User, Users, Plus } from 'lucide-react';
 
 import {
   MissionControlSidebar,
@@ -11,21 +11,9 @@ import {
 
 import { useUIStore } from '@/stores/ui-store';
 import { useAuth } from '@/context/AuthContext';
-
-const sections: SidebarSection[] = [
-  {
-    key: 'main',
-    items: [
-      { key: 'dashboard', label: 'Dashboard', href: '/', icon: <Home className="h-4 w-4" /> },
-      {
-        key: 'boards',
-        label: 'Boards',
-        href: '/',
-        icon: <LayoutDashboard className="h-4 w-4" />,
-      },
-    ],
-  },
-];
+import { useApps } from '@/hooks/api/apps';
+import { useProjects } from '@/hooks/api/projects';
+import { useBoards, useCreateBoard } from '@/hooks/api/boards';
 
 const SHORT_COMMIT_HASH =
   typeof __GIT_COMMIT_HASH__ === 'string' && __GIT_COMMIT_HASH__
@@ -59,6 +47,13 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const { data: apps } = useApps();
+  const { data: projects } = useProjects();
+  const { data: personalBoards } = useBoards('personal');
+  const createBoard = useCreateBoard();
+
+  const [isCreating, setIsCreating] = useState(false);
+
   const handleSignOut = useCallback(async () => {
     await signOut();
     navigate('/auth/login');
@@ -70,6 +65,109 @@ export function Sidebar() {
     },
     [navigate],
   );
+
+  const handleNewBoard = useCallback(async () => {
+    if (isCreating) return;
+    const title = window.prompt('New board title:');
+    if (!title?.trim()) return;
+    setIsCreating(true);
+    try {
+      const board = await createBoard.mutateAsync({ title: title.trim() });
+      navigate(`/board/${board.id}`);
+    } finally {
+      setIsCreating(false);
+    }
+  }, [isCreating, createBoard, navigate]);
+
+  const sections: SidebarSection[] = useMemo(() => {
+    const result: SidebarSection[] = [
+      {
+        key: 'main',
+        items: [
+          {
+            key: 'dashboard',
+            label: 'Dashboard',
+            href: '/',
+            icon: <Home className="h-4 w-4" />,
+            match: 'exact' as const,
+          },
+        ],
+      },
+    ];
+
+    // App boards
+    if (apps && apps.length > 0) {
+      result.push({
+        key: 'apps',
+        label: 'App Boards',
+        items: apps.map((app) => ({
+          key: `app-${app.slug}`,
+          label: app.name,
+          href: `/board/app/${app.slug}`,
+          icon: <LayoutGrid className="h-4 w-4" />,
+          match: 'prefix' as const,
+        })),
+      });
+    }
+
+    // Project boards
+    if (projects && projects.length > 0) {
+      result.push({
+        key: 'projects',
+        label: 'Project Boards',
+        items: projects.slice(0, 20).map((p) => ({
+          key: `project-${p.kantata_id}`,
+          label: p.title,
+          href: `/board/project/${p.kantata_id}`,
+          icon: <FolderKanban className="h-4 w-4" />,
+          match: 'prefix' as const,
+        })),
+      });
+    }
+
+    // Personal boards
+    const myBoards = personalBoards?.filter((b) => b.created_by === user?.id) || [];
+    const sharedBoards = personalBoards?.filter((b) => b.created_by !== user?.id) || [];
+
+    if (myBoards.length > 0 || true) {
+      result.push({
+        key: 'personal',
+        label: 'My Boards',
+        items: [
+          ...myBoards.map((b) => ({
+            key: `board-${b.id}`,
+            label: b.title,
+            href: `/board/${b.id}`,
+            icon: <User className="h-4 w-4" />,
+            match: 'prefix' as const,
+          })),
+          {
+            key: 'new-board',
+            label: '+ New Board',
+            href: null,
+            icon: <Plus className="h-4 w-4" />,
+          },
+        ],
+      });
+    }
+
+    // Shared with me
+    if (sharedBoards.length > 0) {
+      result.push({
+        key: 'shared',
+        label: 'Shared With Me',
+        items: sharedBoards.map((b) => ({
+          key: `shared-${b.id}`,
+          label: b.title,
+          href: `/board/${b.id}`,
+          icon: <Users className="h-4 w-4" />,
+          match: 'prefix' as const,
+        })),
+      });
+    }
+
+    return result;
+  }, [apps, projects, personalBoards, user?.id]);
 
   const displayName = useMemo(() => getDisplayName(user), [user]);
   const email = user?.email ?? '';
@@ -87,6 +185,17 @@ export function Sidebar() {
     [handleSignOut],
   );
 
+  const handleNavigate = useCallback(
+    (item: { href: string | null; key: string }) => {
+      if (item.key === 'new-board') {
+        handleNewBoard();
+        return;
+      }
+      handleNavigateItem(item);
+    },
+    [handleNavigateItem, handleNewBoard],
+  );
+
   return (
     <MissionControlSidebar
       brandAlt="Kanban"
@@ -96,7 +205,7 @@ export function Sidebar() {
       mobileOpen={sidebarMobileOpen}
       onToggleCollapsed={toggleSidebar}
       onMobileOpenChange={setSidebarMobileOpen}
-      onNavigateItem={handleNavigateItem}
+      onNavigateItem={handleNavigate}
       user={userInfo}
       userActions={userActions}
       commitHash={SHORT_COMMIT_HASH}
