@@ -66,7 +66,7 @@ export function DueSoon({ cards }: DueSoonProps) {
         return (
           <Link
             key={card.id}
-            to={`/boards/${card.board_id}`}
+            to={`/board/${card.board_id}`}
             className={cn(
               'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/30',
               overdue && 'bg-red-500/5',

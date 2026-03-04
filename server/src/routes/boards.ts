@@ -17,38 +17,94 @@ router.get('/', async (req, res) => {
   try {
     const scope = (req.query.scope as string) || 'all';
     const userId = req.user!.id;
-    let whereClause: string;
-    let params: any[];
+    const userEmail = (req.user!.email || '').toLowerCase();
+    const isAdmin = req.user!.appAccess?.is_admin === true;
 
-    switch (scope) {
-      case 'app':
-        whereClause = `b.scope_type = 'app' AND b.is_archived = false`;
-        params = [];
-        break;
-      case 'project':
+    const { rows: appAccessRows } = await dbQueryRaw(
+      `SELECT app_slug
+       FROM tower_watch.effective_user_app_access_view
+       WHERE user_id = $1 AND is_active = true`,
+      [userId],
+    );
+
+    const accessibleAppSlugs = appAccessRows
+      .map((row: any) => row.app_slug)
+      .filter((slug: unknown): slug is string => typeof slug === 'string' && slug.length > 0);
+
+    const needsProjectAccess = scope === 'project' || scope === 'all';
+    let accessibleProjectRefs: string[] = [];
+
+    if (!isAdmin && needsProjectAccess && userEmail) {
+      const { rows: projectRows } = await dbQueryRaw(
+        `SELECT DISTINCT wr.workspace_id::text AS workspace_ref
+         FROM traffic_light.kantata_workspace_resources wr
+         JOIN traffic_light.kantata_users u_res
+           ON u_res.kantata_id = wr.user_id AND u_res.is_current = true
+         WHERE wr.is_current = true AND lower(u_res.email_address) = $1
+         UNION
+         SELECT DISTINCT w.kantata_id::text AS workspace_ref
+         FROM traffic_light.kantata_workspaces w
+         JOIN traffic_light.kantata_users u_pm
+           ON u_pm.kantata_id = w.primary_maven_id AND u_pm.is_current = true
+         WHERE w.is_current = true AND lower(u_pm.email_address) = $1`,
+        [userEmail],
+      );
+
+      accessibleProjectRefs = projectRows
+        .map((row: any) => row.workspace_ref)
+        .filter((workspaceRef: unknown): workspaceRef is string => {
+          return typeof workspaceRef === 'string' && workspaceRef.length > 0;
+        });
+    }
+
+    let whereClause = '';
+    const params: any[] = [];
+
+    if (scope === 'app') {
+      if (accessibleAppSlugs.length === 0) return res.json([]);
+      params.push(accessibleAppSlugs);
+      whereClause = `b.scope_type = 'app' AND b.is_archived = false AND b.scope_ref = ANY($1::text[])`;
+    } else if (scope === 'project') {
+      if (isAdmin) {
         whereClause = `b.scope_type = 'project' AND b.is_archived = false`;
-        params = [];
-        break;
-      case 'personal':
-        whereClause = `b.scope_type = 'personal' AND b.is_archived = false
-          AND (b.created_by = $1 OR EXISTS (
-            SELECT 1 FROM board_members bm WHERE bm.board_id = b.id AND bm.user_id = $1
-          ))`;
-        params = [userId];
-        break;
-      default: // 'all'
-        whereClause = `b.is_archived = false
-          AND (
-            b.scope_type = 'app'
-            OR b.scope_type = 'project'
-            OR (b.scope_type = 'personal' AND (
-              b.created_by = $1 OR EXISTS (
-                SELECT 1 FROM board_members bm WHERE bm.board_id = b.id AND bm.user_id = $1
-              )
-            ))
-          )`;
-        params = [userId];
-        break;
+      } else {
+        if (accessibleProjectRefs.length === 0) return res.json([]);
+        params.push(accessibleProjectRefs);
+        whereClause =
+          `b.scope_type = 'project' AND b.is_archived = false AND b.scope_ref = ANY($1::text[])`;
+      }
+    } else if (scope === 'personal') {
+      params.push(userId);
+      whereClause = `b.scope_type = 'personal' AND b.is_archived = false
+        AND (b.created_by = $1 OR EXISTS (
+          SELECT 1 FROM board_members bm WHERE bm.board_id = b.id AND bm.user_id = $1
+        ))`;
+    } else {
+      const visibilityClauses: string[] = [];
+
+      if (accessibleAppSlugs.length > 0) {
+        params.push(accessibleAppSlugs);
+        visibilityClauses.push(`(b.scope_type = 'app' AND b.scope_ref = ANY($${params.length}::text[]))`);
+      }
+
+      if (isAdmin) {
+        visibilityClauses.push(`(b.scope_type = 'project')`);
+      } else if (accessibleProjectRefs.length > 0) {
+        params.push(accessibleProjectRefs);
+        visibilityClauses.push(
+          `(b.scope_type = 'project' AND b.scope_ref = ANY($${params.length}::text[]))`,
+        );
+      }
+
+      params.push(userId);
+      const userIdParam = params.length;
+      visibilityClauses.push(
+        `(b.scope_type = 'personal' AND (b.created_by = $${userIdParam} OR EXISTS (
+          SELECT 1 FROM board_members bm WHERE bm.board_id = b.id AND bm.user_id = $${userIdParam}
+        )))`,
+      );
+
+      whereClause = `b.is_archived = false AND (${visibilityClauses.join(' OR ')})`;
     }
 
     const { rows } = await dbQuery(

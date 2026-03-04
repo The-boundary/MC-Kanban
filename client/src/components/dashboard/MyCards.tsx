@@ -35,7 +35,7 @@ export function MyCards({ cards }: MyCardsProps) {
       {myCards.map((card) => (
         <Link
           key={card.id}
-          to={`/boards/${card.board_id}`}
+          to={`/board/${card.board_id}`}
           className="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/30"
         >
           {/* Priority dot */}

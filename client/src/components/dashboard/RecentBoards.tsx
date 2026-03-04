@@ -35,7 +35,7 @@ export function RecentBoards({ boards }: RecentBoardsProps) {
         return (
           <Link
             key={board.id}
-            to={`/boards/${board.id}`}
+            to={`/board/${board.id}`}
             className="group rounded-lg border border-border/60 bg-card p-4 transition-colors hover:border-sb-brand/40 hover:bg-muted/30"
           >
             <div className="mb-2 flex items-start justify-between gap-2">
