@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Paperclip, FileText, Upload, Trash2, Download, Loader2 } from 'lucide-react';
+import { Paperclip, FileText, Upload, Trash2, ExternalLink, Loader2 } from 'lucide-react';
 import type { Attachment } from '@shared/types';
 import { useUploadAttachment, useDeleteAttachment } from '@/hooks/api/attachments';
 import { useAuth } from '@/context/AuthContext';
@@ -36,9 +36,7 @@ export function CardAttachments({ attachments, cardId }: CardAttachmentsProps) {
       {/* Section header */}
       <div className="mb-2 flex items-center gap-2">
         <Paperclip className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-medium text-foreground">
-          Attachments ({attachments.length})
-        </h3>
+        <h3 className="text-sm font-medium text-foreground">Attachments ({attachments.length})</h3>
         <div className="flex-1" />
         <button
           type="button"
@@ -56,18 +54,14 @@ export function CardAttachments({ attachments, cardId }: CardAttachmentsProps) {
           )}
           Upload
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={handleUpload}
-        />
+        <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
       </div>
 
       {/* Attachment list */}
       <div className="space-y-1">
         {attachments.map((attachment) => {
-          const downloadUrl = (attachment as any).download_url;
+          const downloadUrl =
+            attachment.download_url ?? `/api/attachments/${attachment.id}/download`;
           const isOwner = user?.id === attachment.uploaded_by;
 
           return (
@@ -75,34 +69,30 @@ export function CardAttachments({ attachments, cardId }: CardAttachmentsProps) {
               key={attachment.id}
               className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/30"
             >
-              <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-foreground">
-                  {attachment.file_name}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {formatFileSize(attachment.file_size)}
-                  {attachment.uploader && (
-                    <>
-                      {' - '}
-                      {attachment.uploader.display_name || attachment.uploader.email}
-                    </>
-                  )}
-                </p>
-              </div>
-
-              {/* Download link */}
-              {downloadUrl && (
-                <a
-                  href={downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
-                  title="Download"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </a>
-              )}
+              <a
+                href={downloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-0.5 transition-colors hover:bg-muted hover:text-foreground"
+                title={`Open ${attachment.file_name}`}
+              >
+                <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-foreground">
+                    {attachment.file_name}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {formatFileSize(attachment.file_size)}
+                    {attachment.uploader && (
+                      <>
+                        {' - '}
+                        {attachment.uploader.display_name || attachment.uploader.email}
+                      </>
+                    )}
+                  </p>
+                </div>
+                <ExternalLink className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+              </a>
 
               {/* Delete (uploader only) */}
               {isOwner && (

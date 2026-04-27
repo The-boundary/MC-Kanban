@@ -1,10 +1,11 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import { dbQuery } from '../services/supabase.js';
 import { uploadFile, deleteFile, getSignedUrl } from '../services/storage.js';
 import { sendServerError, sendNotFound } from '../utils/route-helpers.js';
 import { logActivity } from '../services/activity.js';
+import { checkBoardAccess } from '../middleware/board-access.js';
 
 const router = Router();
 
@@ -14,15 +15,60 @@ const upload = multer({
 
 // ─── Helper: look up board via card → column → board ─────────────────────────
 
-async function getBoardIdForCard(cardId: string): Promise<string | null> {
+interface BoardAccessTarget {
+  id: string;
+  scope_type: string;
+  scope_ref: string | null;
+  created_by: string;
+}
+
+async function getBoardForCard(cardId: string): Promise<BoardAccessTarget | null> {
   const { rows } = await dbQuery(
-    `SELECT b.id FROM cards c
+    `SELECT b.id, b.scope_type, b.scope_ref, b.created_by FROM cards c
      JOIN columns col ON col.id = c.column_id
      JOIN boards b ON b.id = col.board_id
      WHERE c.id = $1`,
     [cardId],
   );
-  return rows[0]?.id ?? null;
+  return rows[0] ?? null;
+}
+
+async function requireAccessToBoard(
+  req: Request,
+  res: Response,
+  board: BoardAccessTarget,
+): Promise<boolean> {
+  const hasAccess = await checkBoardAccess(req.user!.id, req.user!.email || '', board);
+  if (!hasAccess) {
+    res.status(403).json({ error: { message: 'Access denied' } });
+    return false;
+  }
+  return true;
+}
+
+async function getAttachmentWithBoard(attachmentId: string) {
+  const { rows } = await dbQuery(
+    `SELECT a.*,
+            b.id AS board_id,
+            b.scope_type AS board_scope_type,
+            b.scope_ref AS board_scope_ref,
+            b.created_by AS board_created_by
+     FROM attachments a
+     JOIN cards c ON c.id = a.card_id
+     JOIN boards b ON b.id = c.board_id
+     WHERE a.id = $1`,
+    [attachmentId],
+  );
+  return rows[0] ?? null;
+}
+
+function boardFromAttachment(attachment: any): BoardAccessTarget {
+  return {
+    id: attachment.board_id,
+    scope_type: attachment.board_scope_type,
+    scope_ref: attachment.board_scope_ref,
+    created_by: attachment.board_created_by,
+  };
 }
 
 // ─── GET /cards/:cardId/attachments ──────────────────────────────────────────
@@ -31,8 +77,9 @@ router.get('/cards/:cardId/attachments', async (req, res) => {
   try {
     const cardId = req.params.cardId;
 
-    const { rows: cardCheck } = await dbQuery('SELECT id FROM cards WHERE id = $1', [cardId]);
-    if (cardCheck.length === 0) return sendNotFound(res, 'Card');
+    const board = await getBoardForCard(cardId);
+    if (!board) return sendNotFound(res, 'Card');
+    if (!(await requireAccessToBoard(req, res, board))) return;
 
     const { rows: attachments } = await dbQuery(
       'SELECT * FROM attachments WHERE card_id = $1 ORDER BY created_at DESC',
@@ -70,13 +117,10 @@ router.post('/cards/:cardId/attachments', upload.single('file'), async (req, res
       return res.status(400).json({ error: { message: 'No file provided' } });
     }
 
-    // Verify card exists
-    const { rows: cardCheck } = await dbQuery('SELECT id FROM cards WHERE id = $1', [cardId]);
-    if (cardCheck.length === 0) return sendNotFound(res, 'Card');
-
     // Verify board access
-    const boardId = await getBoardIdForCard(cardId);
-    if (!boardId) return sendNotFound(res, 'Board');
+    const board = await getBoardForCard(cardId);
+    if (!board) return sendNotFound(res, 'Card');
+    if (!(await requireAccessToBoard(req, res, board))) return;
 
     // Generate unique storage path
     const uuid = crypto.randomUUID();
@@ -104,6 +148,21 @@ router.post('/cards/:cardId/attachments', upload.single('file'), async (req, res
   }
 });
 
+// ─── GET /attachments/:id/download ──────────────────────────────────────────
+
+router.get('/attachments/:id/download', async (req, res) => {
+  try {
+    const attachment = await getAttachmentWithBoard(req.params.id);
+    if (!attachment) return sendNotFound(res, 'Attachment');
+    if (!(await requireAccessToBoard(req, res, boardFromAttachment(attachment)))) return;
+
+    const downloadUrl = await getSignedUrl(attachment.storage_path);
+    res.redirect(downloadUrl);
+  } catch (err) {
+    sendServerError(res, err, 'GET /attachments/:id/download');
+  }
+});
+
 // ─── DELETE /attachments/:id ─────────────────────────────────────────────────
 
 router.delete('/attachments/:id', async (req, res) => {
@@ -111,17 +170,16 @@ router.delete('/attachments/:id', async (req, res) => {
     const attachmentId = req.params.id;
     const userId = req.user!.id;
 
-    const { rows } = await dbQuery(
-      'SELECT * FROM attachments WHERE id = $1',
-      [attachmentId],
-    );
-    if (rows.length === 0) return sendNotFound(res, 'Attachment');
+    const attachment = await getAttachmentWithBoard(attachmentId);
+    if (!attachment) return sendNotFound(res, 'Attachment');
 
-    const attachment = rows[0];
+    if (!(await requireAccessToBoard(req, res, boardFromAttachment(attachment)))) return;
 
     // Only the uploader can delete
     if (attachment.uploaded_by !== userId) {
-      return res.status(403).json({ error: { message: 'Only the uploader can delete this attachment' } });
+      return res.status(403).json({
+        error: { message: 'Only the uploader can delete this attachment' },
+      });
     }
 
     // Delete from storage

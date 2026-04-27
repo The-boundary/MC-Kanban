@@ -11,7 +11,8 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 function getCacheKey(req: Request): string {
-  return req.originalUrl || req.url;
+  const userId = req.user?.id ?? 'anonymous';
+  return `${userId}:${req.originalUrl || req.url}`;
 }
 
 /**

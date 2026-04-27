@@ -95,6 +95,7 @@ export interface Attachment {
   storage_path: string;
   uploaded_by: string;
   created_at: string;
+  download_url?: string | null;
   uploader?: UserSummary;
 }
 
