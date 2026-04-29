@@ -26,9 +26,11 @@ function RouteFallback() {
 
 function AppShellLayout() {
   const location = useLocation();
+  const isBoardRoute = location.pathname.startsWith('/board/');
+
   return (
-    <AppShell>
-      <div key={location.pathname} className="animate-kanban-rise">
+    <AppShell fullWidth={isBoardRoute}>
+      <div key={location.pathname} className="animate-kanban-rise min-w-0">
         <Outlet />
       </div>
     </AppShell>

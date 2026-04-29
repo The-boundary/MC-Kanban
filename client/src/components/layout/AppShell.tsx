@@ -8,15 +8,20 @@ import { Sidebar } from './Sidebar';
 
 interface AppShellProps {
   children: ReactNode;
+  fullWidth?: boolean;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, fullWidth = false }: AppShellProps) {
   const sidebarCollapsed = useUIStore((state) => state.sidebarCollapsed);
   const wideMode = useUIStore((state) => state.wideMode);
 
   const contentClassName = useMemo(
-    () => cn('mx-auto w-full p-4 sm:p-6 lg:p-8', wideMode ? 'max-w-full' : 'max-w-7xl'),
-    [wideMode],
+    () =>
+      cn(
+        'w-full min-w-0 p-4 sm:p-6 lg:p-8',
+        fullWidth || wideMode ? 'mx-0 max-w-none' : 'mx-auto max-w-7xl',
+      ),
+    [fullWidth, wideMode],
   );
 
   return (

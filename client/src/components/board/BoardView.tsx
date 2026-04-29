@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DndContext,
   DragOverlay,
@@ -326,8 +327,25 @@ export function BoardView({ board }: BoardViewProps) {
     overColumnRef.current = null;
   }, []);
 
+  const dragOverlay = (
+    <DragOverlay dropAnimation={null}>
+      {activeCard ? (
+        <div className="w-72 rotate-2 opacity-90">
+          <CardItem card={activeCard} boardId={board.id} isOverlay />
+        </div>
+      ) : null}
+      {activeColumnId ? (
+        <div className="w-72 rotate-1 opacity-70 rounded-lg border border-border bg-card/80 p-4">
+          <p className="text-sm font-medium text-foreground">
+            {columns.find((c) => c.id === activeColumnId)?.title}
+          </p>
+        </div>
+      ) : null}
+    </DragOverlay>
+  );
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <BoardHeader board={board} />
 
       <BoardFilters
@@ -350,7 +368,7 @@ export function BoardView({ board }: BoardViewProps) {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto pb-4 pt-2">
+        <div className="flex min-w-0 flex-1 gap-4 overflow-x-auto pb-4 pt-2">
           <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
             {filteredColumns.map((column) => (
               <BoardColumn
@@ -365,20 +383,9 @@ export function BoardView({ board }: BoardViewProps) {
           <AddColumn boardId={board.id} />
         </div>
 
-        <DragOverlay dropAnimation={null}>
-          {activeCard ? (
-            <div className="w-72 rotate-2 opacity-90">
-              <CardItem card={activeCard} boardId={board.id} isOverlay />
-            </div>
-          ) : null}
-          {activeColumnId ? (
-            <div className="w-72 rotate-1 opacity-70 rounded-lg border border-border bg-card/80 p-4">
-              <p className="text-sm font-medium text-foreground">
-                {columns.find((c) => c.id === activeColumnId)?.title}
-              </p>
-            </div>
-          ) : null}
-        </DragOverlay>
+        {typeof document !== 'undefined'
+          ? createPortal(dragOverlay, document.body)
+          : dragOverlay}
       </DndContext>
 
       {/* Card detail modal */}
