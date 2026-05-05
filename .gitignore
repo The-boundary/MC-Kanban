@@ -5,3 +5,8 @@ dist/
 .DS_Store
 .claude/
 .worktrees/
+
+# Graphify generated output
+graphify-out/*
+!graphify-out/
+!graphify-out/GRAPH_REPORT.md
